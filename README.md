@@ -15,6 +15,12 @@ git pull 后 cd 到PHPpack 目录
 
 `php phppack.php -m 入口文件名称 -o 输出文件路径 --v开启变量混淆`
 ## 演示
+php的源文件 index.php
+```php
+<?php
+require './hhh.php' ;
+echo 'hello PHPpack';
+```
 ```shell
 $ php phperpack.php -m ./index.php
 加载：/Applications/MAMP/htdocs/PHPerpack/index.php
