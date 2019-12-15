@@ -9,10 +9,12 @@ new Main();
 
 
 class Main {
+  static public $startTime;
   public $entry;
   public $outputPath;
   static public $varConfusion = False;
   public function __construct() {
+    self::$startTime = microtime(true);
     $this->_init();
   }
 
@@ -20,7 +22,7 @@ class Main {
     global $argv;
     $this->init_before();
     $mainIndex = array_search('-m',$argv);
-    $mainIndex || die(new Message("对不起进程无法继续，请输入入口文件名称", 'error'));
+    $mainIndex || die(new Message("警告：对不起进程无法继续，请输入入口文件名称或使用phppack.config.json文件进行配置", 'error'));
     $outputIndex = array_search('-o', $argv);
     $this->outputPath = $outputIndex ? $this->handlePath($argv[ $outputIndex + 1 ]) : './output.php';
     $mainFileName = $argv[$mainIndex + 1];
@@ -61,6 +63,7 @@ class Handle extends Main {
   private $queue = []; // 语法队列
   private $queueName = [];
   private $varMap = [];
+  private $fileGetContents = [];
   private $keyWordSpace = [
     'echo',
     'function',
@@ -70,6 +73,8 @@ class Handle extends Main {
     'protected',
     'new',
     'extends',
+    'use',
+    'namespace'
   ];
 
   function __construct($filename, $outputPath) {
@@ -105,8 +110,8 @@ class Handle extends Main {
           }else {
             array_push($temp, $temp_str);
           }
-          if ($v[0] == 319) {
-            array_push($temp, ' ');
+          if ($v[0] == 390) {
+            array_push($temp, '\\');
           }
         }
       }else {
@@ -116,10 +121,22 @@ class Handle extends Main {
 
     $ret = [];
     while(list($k, $v) = each($temp)) {
-      if ($v == 'include' || $v == 'include_once') {
+      if (
+        $v == 'include' ||
+        $v == 'include_once' ||
+        $v == 'require' ||
+        $v == 'require_once'
+      ) {
         $this->handle_parse_include($temp, $temp, $randomName);
+      }else if ($v == 'file_get_contents') {
+        $this->handle_parse_fileGetContent($temp, $temp, $randomName);
       }else {
         array_push($this->queue[$randomName], $v);
+      }
+      $temp_next = $temp;
+      list(, $vv) = each($temp_next);
+      if (in_array($vv, $this->keyWordSpace)) {
+        array_push($this->queue[$randomName], ' ');
       }
       if (in_array($v, $this->keyWordSpace)) {
         array_push($this->queue[$randomName], ' ');
@@ -128,7 +145,7 @@ class Handle extends Main {
   }
 
   /**
-   * 处理include
+   * 处理include and require
   **/
   function handle_parse_include($arr, &$origin_arr, $randomName) {
     list($k, $v) = each($arr);
@@ -147,10 +164,30 @@ class Handle extends Main {
     }
   }
   /**
+   * 处理file_get_contents
+  **/
+  function handle_parse_fileGetContent($arr, &$origin_arr, $randomName) {
+    each($origin_arr);
+    each($origin_arr);
+    list(, $fileName) = each($origin_arr);
+    if ($fileName[0] == '\'') {
+      $fileName = trim($fileName, '\'');
+    }else {
+      $fileName = trim($fileName, '"');
+    }
+    $fileContent = file_get_contents($fileName);
+    $randomVar = '_'.md5(mt_rand(1000000, 9999999));
+    $this->fileGetContents[$randomVar] = $fileContent;
+    array_push($this->queue[$randomName], "\\\${$randomVar}");
+    each($origin_arr);
+
+  }
+  /**
    * 输出文件
   **/
   function output($outputPath) {
     $output_str = "<?php \r\n";
+    $this->handle_output_fileGetContents($output_str);
     $reverse_code = array_reverse($this->queue);
     foreach($reverse_code as $k => $v) {
       $output_str .= "\${$k} = <<<{$k}\r\n";
@@ -163,7 +200,18 @@ class Handle extends Main {
     $reverse_name = array_reverse($reverse_name);
     $output_str .= "eval(\$$reverse_name[0]);";
     file_put_contents($outputPath, $output_str);
-    echo new Message("👌PHPpack为您构建成功！\r\n🚗构建后文件位置：{$outputPath}", 'success');
+    $consumeTime = (microtime(true) - Main::$startTime) * 100;
+    echo new Message("👌PHPpack为您构建成功！\r\n🚗构建后文件位置：{$outputPath}\r\n⌚️总耗时：{$consumeTime}s", 'success');
+  }
+  /**
+   * 处理输出的file_get_contents
+  **/
+  function handle_output_fileGetContents(&$output_str) {
+    foreach($this->fileGetContents as $k => $v) {
+      $output_str.= "\${$k} = <<<{$k}\r\n";
+      $output_str.= $v."\r\n";
+      $output_str.="{$k};\r\n";
+    }
   }
   /**
    * xxx

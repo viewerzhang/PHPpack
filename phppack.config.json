@@ -1,0 +1,14 @@
+{
+  "entry": "./index.php",
+  "output": {
+    "filename": "main.php",
+    "path": "./output",
+  },
+  "options": {
+    "varMd5": true,
+  },
+  "module": {
+    "dir": [],
+    "file": [],
+  }
+}
