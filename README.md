@@ -9,3 +9,17 @@ How to start?
 PHPpack是一个轻量级的工具所以使用起来也非常简单
 
 Phppack is a lightweight tool, so it's very easy to use
+
+然后键入 打开terminal or CMD
+git pull 后 cd 到PHPpack 目录
+
+`php phppack.php -m 入口文件名称 -o 输出文件路径 --v开启变量混淆`
+## 演示
+```shell
+$ php phperpack.php -m ./index.php
+加载：/Applications/MAMP/htdocs/PHPerpack/index.php
+加载：/Applications/MAMP/htdocs/PHPerpack/hhh.php
+👌PHPpack为您构建成功！
+🚗构建后文件位置：./output.php
+⌚️总耗时：0.074505805969238s
+```
