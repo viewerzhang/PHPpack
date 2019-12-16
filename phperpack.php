@@ -5,7 +5,6 @@
  * -o 指定输出文件位置 及文件名，可以是相对路径，也可以是绝对路径
  * --v 开启变量名混淆
  * --p 使用模块打包
- * --e 开启代码加密
 **/
 new Main();
 
@@ -29,9 +28,6 @@ class Main {
     if (array_search('--p', $argv)) {
       Main::$pack = True;
     }
-    if (array_search('--e', $argv)) {
-      Main::$encryption = True;
-    }
     $mainIndex || die(new Message("警告：对不起进程无法继续，请输入入口文件名称或使用phppack.config.json文件进行配置", 'error'));
     $outputIndex = array_search('-o', $argv);
     $this->outputPath = $outputIndex ? $this->handlePath($argv[ $outputIndex + 1 ]) : './output.php';
@@ -41,6 +37,10 @@ class Main {
     }
     if (array_search('--v', $argv)) {
       Main::$varConfusion = True;
+    }
+
+    if (array_search('--e', $argv)) {
+      Main::$encryption = True;
     }
 
     $this->entry = $this->handlePath($mainFileName);
@@ -85,10 +85,9 @@ class Handle extends Main {
     'extends',
     'use',
     'namespace',
-    'as',
-    'return',
+    'as'
   ];
-  private $en = 'function BCO120FF(\$str){\$arr=explode("PHPpackJM1.0",\$str);\$ret=[];foreach(\$arr as \$k=>\$v){\$_arr=explode("O",\$v);\$len=array_shift(\$_arr);\$first=array_shift(\$_arr);\$_str="";for(\$i=0;\$i<\$len;\$i++){if(\$i==\$first){\$_str.="1";\$first=array_shift(\$_arr);}else{\$_str.="0";}}array_push(\$ret,\$_str);}foreach(\$ret as &\$v){\$v=pack("H".strlen(base_convert(\$v,2,16)),base_convert(\$v,2,16));}return join("",\$ret);}';
+  private $en = 'function F88BAF0X(\$str){\$arr=explode("PHPpackJM1.0",\$str);\$ret=[];foreach(\$arr as \$k=>\$v){\$_arr=explode("O",\$v);\$len=array_shift(\$_arr);\$first=array_shift(\$_arr);\$_str="";for(\$i=0;\$i<\$len;\$i++){if(\$i==\$first){\$_str.="1";\$first=array_shift(\$_arr);}else{\$_str.="0";}}array_push(\$ret,\$_str);}foreach(\$ret as &\$v){\$v=pack("H".strlen(base_convert(\$v,2,16)),base_convert(\$v,2,16));}return join("",\$ret);} ';
 
   function __construct($filename, $outputPath) {
 
@@ -203,31 +202,41 @@ class Handle extends Main {
    * 输出文件
   **/
   function output($outputPath) {
-    $output_str = "";
+    $output_str = "<?php \r\n";
     $this->handle_output_fileGetContents($output_str);
     $reverse_code = array_reverse($this->queue);
-    $len = count($reverse_code);
-    foreach($reverse_code as $k => $v) {
-      $len--;
-      foreach($v as $kk => $vv) {
-        $output_str .= $vv;
+    $new_temp_arr = [];
+    if (Main::$encryption) {
+      foreach($reverse_code as $k => $v) {
+        $t = '';
+        foreach($v as $kk => $vv) {
+          $t .= $vv;
+        }
+        echo $t, '====';
+        $t = str_replace('\\', '', $t);
+        $new_temp_arr[$k] = 'eval(F88BAF0X("'.$this->limit($t).'"));';
       }
+      $reverse_code = $new_temp_arr;
+    }
+
+
+
+    $len = count($new_temp_arr);
+    foreach($new_temp_arr as $k => $v) {
+      $output_str .= "\${$k} = <<<{$k}\r\n";
       if (Main::$encryption) {
-        $output_str = $this->limit($output_str);
-      }
-      if (Main::$encryption) {
-        if ($len) {
-          $output_str = "\${$k} = <<<{$k}\r\neval(BCO120FF(\"" . $output_str .'"));';
-        }else {
-          $output_str = "\${$k} = <<<{$k}\r\neval(BCO120FF(\"" . $output_str .'"));' .$this->en;
+        $len--;
+        $output_str .= $v;
+        if (!$len) {
+          $output_str .= $this->en;
         }
       }else {
-        $output_str = "\${$k} = <<<{$k}\r\n" . $output_str;
+        foreach($v as $kk => $vv) {
+          $output_str .= $vv;
+        }
       }
-      
       $output_str .= "\r\n{$k};\r\n";
     }
-    $output_str = "<?php \r\n" . $output_str;
     $reverse_name = array_reverse($this->queueName);
     $reverse_name = array_reverse($reverse_name);
     $output_str .= "eval(\$$reverse_name[0]);";
