@@ -4,6 +4,8 @@
  * -m 指定入口文件路径 可以是相当路径 也可以是绝对路径
  * -o 指定输出文件位置 及文件名，可以是相对路径，也可以是绝对路径
  * --v 开启变量名混淆
+ * --p 使用模块打包
+ * --e 开启代码加密
 **/
 new Main();
 
@@ -13,6 +15,8 @@ class Main {
   public $entry;
   public $outputPath;
   static public $varConfusion = False;
+  static public $pack = False;
+  static public $encryption = False;
   public function __construct() {
     self::$startTime = microtime(true);
     $this->_init();
@@ -22,6 +26,12 @@ class Main {
     global $argv;
     $this->init_before();
     $mainIndex = array_search('-m',$argv);
+    if (array_search('--p', $argv)) {
+      Main::$pack = True;
+    }
+    if (array_search('--e', $argv)) {
+      Main::$encryption = True;
+    }
     $mainIndex || die(new Message("警告：对不起进程无法继续，请输入入口文件名称或使用phppack.config.json文件进行配置", 'error'));
     $outputIndex = array_search('-o', $argv);
     $this->outputPath = $outputIndex ? $this->handlePath($argv[ $outputIndex + 1 ]) : './output.php';
@@ -74,8 +84,11 @@ class Handle extends Main {
     'new',
     'extends',
     'use',
-    'namespace'
+    'namespace',
+    'as',
+    'return',
   ];
+  private $en = 'function BCO120FF(\$str){\$arr=explode("PHPpackJM1.0",\$str);\$ret=[];foreach(\$arr as \$k=>\$v){\$_arr=explode("O",\$v);\$len=array_shift(\$_arr);\$first=array_shift(\$_arr);\$_str="";for(\$i=0;\$i<\$len;\$i++){if(\$i==\$first){\$_str.="1";\$first=array_shift(\$_arr);}else{\$_str.="0";}}array_push(\$ret,\$_str);}foreach(\$ret as &\$v){\$v=pack("H".strlen(base_convert(\$v,2,16)),base_convert(\$v,2,16));}return join("",\$ret);}';
 
   function __construct($filename, $outputPath) {
 
@@ -121,15 +134,19 @@ class Handle extends Main {
 
     $ret = [];
     while(list($k, $v) = each($temp)) {
-      if (
-        $v == 'include' ||
-        $v == 'include_once' ||
-        $v == 'require' ||
-        $v == 'require_once'
-      ) {
-        $this->handle_parse_include($temp, $temp, $randomName);
-      }else if ($v == 'file_get_contents') {
-        $this->handle_parse_fileGetContent($temp, $temp, $randomName);
+      if (Main::$pack) {
+        if (
+          $v == 'include' ||
+          $v == 'include_once' ||
+          $v == 'require' ||
+          $v == 'require_once'
+        ) {
+          $this->handle_parse_include($temp, $temp, $randomName);
+        }else if ($v == 'file_get_contents') {
+          $this->handle_parse_fileGetContent($temp, $temp, $randomName);
+        }else {
+          array_push($this->queue[$randomName], $v);
+        }
       }else {
         array_push($this->queue[$randomName], $v);
       }
@@ -186,16 +203,31 @@ class Handle extends Main {
    * 输出文件
   **/
   function output($outputPath) {
-    $output_str = "<?php \r\n";
+    $output_str = "";
     $this->handle_output_fileGetContents($output_str);
     $reverse_code = array_reverse($this->queue);
+    $len = count($reverse_code);
     foreach($reverse_code as $k => $v) {
-      $output_str .= "\${$k} = <<<{$k}\r\n";
+      $len--;
       foreach($v as $kk => $vv) {
         $output_str .= $vv;
       }
+      if (Main::$encryption) {
+        $output_str = $this->limit($output_str);
+      }
+      if (Main::$encryption) {
+        if ($len) {
+          $output_str = "\${$k} = <<<{$k}\r\neval(BCO120FF(\"" . $output_str .'"));';
+        }else {
+          $output_str = "\${$k} = <<<{$k}\r\neval(BCO120FF(\"" . $output_str .'"));' .$this->en;
+        }
+      }else {
+        $output_str = "\${$k} = <<<{$k}\r\n" . $output_str;
+      }
+      
       $output_str .= "\r\n{$k};\r\n";
     }
+    $output_str = "<?php \r\n" . $output_str;
     $reverse_name = array_reverse($this->queueName);
     $reverse_name = array_reverse($reverse_name);
     $output_str .= "eval(\$$reverse_name[0]);";
@@ -213,6 +245,38 @@ class Handle extends Main {
       $output_str.="{$k};\r\n";
     }
   }
+
+  /**
+   *
+  **/
+  function limit($str){
+    $arr = preg_split('/(?<!^)(?!$)/u', $str);
+    $ret = [];
+    foreach($arr as &$v){
+        $temp = unpack('H*', $v);
+        $v = base_convert($temp[1], 16, 2);
+        $_str_arr = [];
+        array_push($_str_arr, strlen($v));
+        for($i = 0; $i < strlen($v); $i++) {
+          if ($v[$i] == '1') {
+            array_push($_str_arr, $i);
+          }
+        }
+        array_push($ret, $_str_arr);
+        unset($temp);
+    }
+    $ret_str = '';
+    foreach($ret as $k => $v) {
+      foreach($v as $kk => $vv) {
+        $ret_str .= $vv . 'O';
+      }
+      $ret_str = rtrim($ret_str, 'O');
+      $ret_str .= 'PHPpackJM1.0';
+    }
+    $ret_str = rtrim($ret_str, 'PHPpackJM1.0');
+    return $ret_str;
+  }
+
   /**
    * xxx
    **/
